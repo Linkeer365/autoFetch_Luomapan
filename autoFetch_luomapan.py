@@ -42,7 +42,7 @@ def cookies_str2dict(some_str):
 
     head_str="Cookie: "
     some_str=some_str.replace(head_str,"; ")
-    print(f"{some_str}")
+    # print(f"{some_str}")
     # \s表示空格
     # 注意，这边必须有\s{1}（因为只有一个空格，不能匹配到后面的空格了！）
     key_patt=";\s{1}(.*?)="
@@ -50,7 +50,7 @@ def cookies_str2dict(some_str):
     keys=re.findall(key_patt,some_str,re.S)
     values=re.findall(val_patt,some_str,re.S)
     cookies_dict={key:value for key,value in zip(keys,values)}
-    print(cookies_dict)
+    # print(cookies_dict)
     return cookies_dict
 
 # cookies_str="Cookie: pgv_pvid=8541859840; RK=YADIJ0C4eW; ptcz=fb89f930d9e2f36e761e213df0d553bf520b692d247ae1f8533e4e39b88eeadd; pgv_pvi=1940357120; gaduid=5cd30be52f0b7; tvfe_boss_uuid=d3ae976089f1415c; XWINDEXGREY=0; ied_qq=o0564142445; pac_uid=1_564142445; o_cookie=564142445; eas_sid=Z1F5V9U371L4N7r3m7N0T9W342; pt_sms_phone=136******12; iip=0; ptui_loginuin=2822786435"
@@ -86,7 +86,7 @@ def login():
     qrcode_query_dict=s.get(qrcode_create_url, headers=headers, verify=False).json()
     sess_cookies_dict=s.cookies.get_dict()
 
-    print("sess cookies",sess_cookies_dict)
+    # print("sess cookies",sess_cookies_dict)
 
     # cookies 定制
     # https://stackoverflow.com/questions/17224054/how-to-add-a-cookie-to-the-cookiejar-in-python-requests-library
@@ -113,7 +113,7 @@ def login():
     # sess_cookies=s.cookies
     # print("sess_cookies:",sess_cookies)
     qrcode_image_url=qrcode_query_dict["data"]["image"]
-    print(f"qrcode query:{qrcode_image_url}")
+    # print(f"qrcode query:{qrcode_image_url}")
     qrcode_image = s.get(qrcode_image_url, headers=headers,verify=False).content
     # assert cok1==cok2 and bool(cok1)!=0
     # sys.exit(0)
@@ -146,7 +146,7 @@ def login():
 def get_fields(page_text,patt):
     html=etree.HTML(page_text)
     fields=html.xpath(patt)
-    print("Found:\n")
+    # print("Found:\n")
     for each in fields:
         print(each)
     print("\n")
@@ -163,6 +163,8 @@ def get_max_pagenum(search_link):
     pagenum_patt="//a[@class='pager-it']//text()"
     pagenums=html.xpath(pagenum_patt)
 
+    max_pagenum=None
+
     if pagenums==[]:
         # 搜索结果总共一页（此时一个也没有，因为此时它的页码的class是pager-it active，那么就一个也没有）
         max_pagenum=1
@@ -170,20 +172,44 @@ def get_max_pagenum(search_link):
         for each in pagenums[::-1]:
             # 倒着排序，（因为xpath获取到的页码数一定从小到大，懂得都懂）
             # 因为可能会有【下一页】的标签，这些必须排除掉
+            each=each.replace("\n","")
+            each=each.strip(" ")
+            each=each.lstrip(" ")
+            print("Num Fetched:",repr(each))
             if each.isdigit():
                 max_pagenum=int(each)
                 break
+    # assert max_pagenum!=None
+
+    # 忍一手..
+
+    if max_pagenum==None:
+        max_pagenum=1
     return max_pagenum
 
 
 def get_netdisk_dict_from_detail_link(detail_link):
     page_text=s.get(detail_link,headers=headers).text
+
+    # print("Page text")
+    time.sleep(3)
     html=etree.HTML(page_text)
+
     script_patt="//script[starts-with(text(),'window.__NUXT__=')]//text()"
     script_str=html.xpath(script_patt)[0]
 
-    netdisk_link_patt=",\"(https:.*?)\""
-    netdisk_link=re.findall(netdisk_link_patt,script_str)[0]
+    print("Script str:",script_str)
+
+    # 注意这里的正则匹配要转义！！
+
+    netdisk_link_patt="\"(https:.*[pan|yun]\.baidu\..*?)\""
+    finds=re.findall(netdisk_link_patt,script_str)
+
+    print("Finds",finds)
+
+
+    netdisk_link=finds[0]
+
     passwd_patt="//span[@class='meta-item copy-item']//text()"
 
     # 获取到的样式是这样的，['提取密码', ' \n            uapr \n            ', '点击复制']
@@ -219,9 +245,12 @@ def get_netdisk_dict_from_detail_link(detail_link):
     return dict(netdisk_link=netdisk_link,passwd=passwd)
 
 def fetch_one_page(keyword,pagenum):
-    search_url=f"https://www.luomapan.com/search?keyword={keyword}&page={pagenum}"
-
+    if pagenum>1:
+        search_url=f"https://www.luomapan.com/search?keyword={keyword}&page={pagenum}"
+    elif pagenum==1:
+        search_url=f"https://www.luomapan.com/search?keyword={keyword}"
     page_text=s.get(search_url,headers=headers).text
+    time.sleep(3)
 
     # soup=BeautifulSoup(page_text,"lxml")
     # with open(f"{target_dir}{os.sep}soup.txt","w",encoding="utf-8") as f:
@@ -303,10 +332,25 @@ def main():
 
         with open(netdisk_results_path,"a",encoding="utf-8") as f:
             f.write(netdisk_dicts_s)
+            # 这个空格很重要
+            # 否则下面不可能直接用脚本
+
+            f.write("\n")
 
         prompt_for_MoreSearch=input("Want more search?More search Press m: ")
         mForMore=prompt_for_MoreSearch
+    # 注意，这里使用的是windows下的命令行
+    # https://superuser.com/questions/434870/what-is-the-windows-equivalent-of-the-unix-command-cat
+    os.chdir(target_dir)
+    
+    for each in os.listdir(target_dir):
+        if each.endswith(".txt") and each.startswith("results_"):
+            with open(each,"r",encoding="utf-8") as f:
+                lines=f.readlines()
+            if lines==["\n"]:
+                os.remove(each)
 
+    os.system("type results_*.txt > results_all.txt")
     print("Search done.")
 
 if __name__ == '__main__':
