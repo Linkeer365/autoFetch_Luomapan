@@ -13,7 +13,8 @@ import sys
 
 import time
 
-target_dir=r"D:\AllDowns"
+
+target_dir="./luomapan_down"
 
 guide_url="https://www.luomapan.com/"
 
